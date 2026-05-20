@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>COSMIC 拆分助手</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css?v=20260519-toast" />
+    <script defer src="./app.js?v=20260519-cfp-rule-reminder"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <main class="workspace">
+        <section class="panel controls-panel">
+          <div class="panel-header">
+            <h2>基础信息</h2>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>项目名称</span>
+              <input id="projectName" type="text" placeholder="例如：2025年业务支撑网系统开发二期项目" />
+            </label>
+
+            <label class="field">
+              <span>目标 CFP 总和</span>
+              <input id="targetCfp" type="number" min="1" step="1" value="405" />
+            </label>
+
+            <label class="field">
+              <span>功能点负责人</span>
+              <input id="owner" type="text" value="宋恺珉" />
+            </label>
+
+            <div class="inline-action">
+              <span>大模型接口</span>
+              <button id="llmConfigBtn" class="secondary-btn" type="button">配置大模型</button>
+            </div>
+          </div>
+
+          <div id="dropzone" class="dropzone" tabindex="0" role="button">
+            <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.txt,.md,.docx" hidden />
+            <p class="dropzone-title">上传文件</p>
+            <p id="selectedFile" class="selected-file">未选择文件</p>
+          </div>
+
+          <div class="action-row">
+            <button id="generateBtn" class="primary-btn" type="button">开始拆分</button>
+            <button id="exportBtn" class="secondary-btn" type="button" disabled>导出 Excel</button>
+          </div>
+
+          <div id="statusBox" class="status-box">等待上传或粘贴需求文档。</div>
+        </section>
+
+        <section class="panel preview-panel">
+          <div class="panel-header">
+            <h2>提取内容</h2>
+          </div>
+          <textarea
+            id="sourceEditor"
+            class="source-editor"
+            placeholder="粘贴需求文档、项目说明或功能清单。"
+          ></textarea>
+        </section>
+
+        <section class="panel table-panel">
+          <div class="panel-header">
+            <h2>拆分结果预览</h2>
+          </div>
+          <div class="table-wrap">
+            <table id="resultTable">
+              <thead>
+                <tr>
+                  <th>客户需求</th>
+                  <th>一级模块</th>
+                  <th>二级模块</th>
+                  <th>三级模块</th>
+                  <th>功能用户</th>
+                  <th>触发事件</th>
+                  <th>功能过程</th>
+                  <th>子过程描述</th>
+                  <th>数据移动类型</th>
+                  <th>数据组</th>
+                  <th>数据属性</th>
+                  <th>复用度</th>
+                  <th>CFP</th>
+                </tr>
+              </thead>
+              <tbody id="resultBody">
+                <tr>
+                  <td colspan="13" class="empty-state">暂无结果</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <dialog id="llmConfigDialog" class="modal">
+        <form id="llmConfigForm" class="modal-card">
+          <div class="modal-header">
+            <h2>配置大模型</h2>
+            <button id="closeLlmConfigBtn" class="icon-btn" type="button" aria-label="关闭">×</button>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>API Key</span>
+              <input id="llmApiKey" type="password" autocomplete="off" placeholder="sk-..." />
+            </label>
+
+            <label class="field">
+              <span>Base URL</span>
+              <input id="llmBaseUrl" type="url" placeholder="https://api.openai.com/v1/chat/completions" />
+            </label>
+
+            <label class="field">
+              <span>模型名称</span>
+              <input id="llmModel" type="text" placeholder="gpt-4o-mini" />
+            </label>
+
+            <label class="checkbox-field">
+              <input id="rememberLlmConfig" type="checkbox" checked />
+              <span>记住 Base URL 和模型名称</span>
+            </label>
+          </div>
+
+          <p id="llmConfigStatus" class="llm-config-status"></p>
+
+          <div class="modal-actions">
+            <button id="testLlmConfigBtn" class="secondary-btn" type="button">测试连接</button>
+            <button id="saveLlmConfigBtn" class="primary-btn" type="submit">保存配置</button>
+            <button class="secondary-btn" type="button" data-close-modal>取消</button>
+          </div>
+        </form>
+      </dialog>
+    </div>
+  </body>
+</html>
