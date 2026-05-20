@@ -25,6 +25,7 @@ pnpm-debug.log*
 
 # Generated COSMIC export files
 *COSMIC拆分结果*.xlsx
+灵犀助手--cosmic评估过程表*.xlsx
 cosmic-output/
 outputs/
 
