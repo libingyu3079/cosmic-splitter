@@ -97,7 +97,6 @@ const LLM_CONFIG_STORAGE_KEY = "cosmicSplitter.llmConfig";
 const DEFAULT_BACKEND_URL = "http://127.0.0.1:8090";
 const TOAST_SUCCESS_AUTO_CLOSE_MS = 0;
 const TOAST_ERROR_AUTO_CLOSE_MS = 12000;
-const CFP_TARGET_TOLERANCE = 0.01;
 const COSMIC_COLUMNS = [
   "客户需求",
   "一级模块",
@@ -120,6 +119,7 @@ let generatedRows = [];
 let activeToastTimer = null;
 let toastContainer = null;
 let completionAudioContext = null;
+let standardizedDocumentReady = false;
 let llmSessionConfig = {
   apiKey: "",
   baseUrl: "https://api.openai.com/v1/chat/completions",
@@ -128,7 +128,6 @@ let llmSessionConfig = {
 
 const elements = {
   targetCfp: document.getElementById("targetCfp"),
-  owner: document.getElementById("owner"),
   projectName: document.getElementById("projectName"),
   llmConfigBtn: document.getElementById("llmConfigBtn"),
   llmConfigDialog: document.getElementById("llmConfigDialog"),
@@ -143,7 +142,13 @@ const elements = {
   dropzone: document.getElementById("dropzone"),
   fileInput: document.getElementById("fileInput"),
   selectedFile: document.getElementById("selectedFile"),
+  descriptionPanel: document.getElementById("descriptionPanel"),
+  descriptionEditor: document.getElementById("descriptionEditor"),
   sourceEditor: document.getElementById("sourceEditor"),
+  sourcePanelTitle: document.getElementById("sourcePanelTitle"),
+  sourcePanelHint: document.getElementById("sourcePanelHint"),
+  inputModeRadios: document.querySelectorAll('input[name="inputMode"]'),
+  standardizeBtn: document.getElementById("standardizeBtn"),
   generateBtn: document.getElementById("generateBtn"),
   exportBtn: document.getElementById("exportBtn"),
   statusBox: document.getElementById("statusBox"),
@@ -155,6 +160,7 @@ bootstrap();
 function bootstrap() {
   loadSavedLlmConfig();
   bindEvents();
+  updateInputModeView();
 }
 
 function bindEvents() {
@@ -201,6 +207,18 @@ function bindEvents() {
     await loadFile(file);
   });
 
+  elements.inputModeRadios.forEach((radio) => {
+    radio.addEventListener("change", updateInputModeView);
+  });
+  elements.descriptionEditor.addEventListener("input", () => {
+    standardizedDocumentReady = false;
+  });
+  elements.sourceEditor.addEventListener("input", () => {
+    if (getInputMode() === "description" && elements.sourceEditor.value.trim()) {
+      standardizedDocumentReady = true;
+    }
+  });
+  elements.standardizeBtn.addEventListener("click", handleStandardizeOnly);
   elements.generateBtn.addEventListener("click", handleGenerate);
   elements.exportBtn.addEventListener("click", exportToExcel);
   elements.closeLlmConfigBtn.addEventListener("click", closeLlmConfigDialog);
@@ -210,6 +228,8 @@ function bindEvents() {
 }
 
 async function loadFile(file) {
+  setInputMode("document");
+  updateInputModeView();
   selectedFile = file;
   elements.selectedFile.textContent = `已选择：${file.name}`;
   setStatus(`正在解析 ${file.name} ...`);
@@ -217,6 +237,7 @@ async function loadFile(file) {
   try {
     const text = await parseFileToText(file);
     elements.sourceEditor.value = text.trim();
+    standardizedDocumentReady = false;
     setStatus(`文件解析完成，可直接点击“开始拆分”。`);
   } catch (error) {
     console.error(error);
@@ -251,15 +272,26 @@ async function parseFileToText(file) {
 
 async function handleGenerate() {
   try {
-    const sourceText = elements.sourceEditor.value.trim();
-    if (!sourceText) {
+    prepareCompletionReminder();
+    const settings = collectSettings();
+    let generationSourceText = elements.sourceEditor.value.trim();
+    if (getInputMode() === "description") {
+      const descriptionText = elements.descriptionEditor.value.trim();
+      if (!generationSourceText || !standardizedDocumentReady) {
+        if (!descriptionText) {
+          throw new Error("请先在“需求描述”中粘贴原始需求，或在右侧编辑标准需求文档。");
+        }
+        generationSourceText = await standardizeRequirement(descriptionText, settings);
+        elements.sourceEditor.value = generationSourceText;
+        standardizedDocumentReady = true;
+        showToast("需求文档已整理", "请检查右侧标准需求文档；本次将基于该文档继续拆分。", "success");
+      }
+    } else if (!generationSourceText) {
       throw new Error("请输入需求文档或功能清单。");
     }
 
-    prepareCompletionReminder();
     setStatus("正在整理输入内容...");
-    parsedModules = parseModules(sourceText);
-    const settings = collectSettings();
+    parsedModules = parseModules(generationSourceText);
     setStatus("正在请求大模型生成 COSMIC 拆分明细...");
     generatedRows = await requestAiRows(parsedModules, settings);
     generatedRows = normalizeRowsCfpByReuse(generatedRows);
@@ -287,6 +319,94 @@ async function handleGenerate() {
   }
 }
 
+async function handleStandardizeOnly() {
+  const sourceText =
+    getInputMode() === "description"
+      ? elements.descriptionEditor.value.trim()
+      : elements.sourceEditor.value.trim();
+  if (!sourceText) {
+    setStatus("请先输入需求描述，再整理为标准需求文档。", true);
+    return;
+  }
+
+  const settings = collectSettings();
+  elements.standardizeBtn.disabled = true;
+  elements.generateBtn.disabled = true;
+
+  try {
+    const documentText = await standardizeRequirement(sourceText, settings);
+    elements.sourceEditor.value = documentText;
+    standardizedDocumentReady = true;
+    setStatus("已整理为标准需求文档，请在右侧预览和编辑，确认后点击“开始拆分”。");
+    showToast("整理完成", "标准需求文档已放入编辑区，可以继续调整或直接拆分。", "success");
+  } catch (error) {
+    console.error(error);
+    setStatus(`需求文档整理失败：${error.message}`, true);
+    showToast("需求文档整理失败", error.message, "error");
+  } finally {
+    elements.standardizeBtn.disabled = false;
+    elements.generateBtn.disabled = false;
+  }
+}
+
+async function standardizeRequirement(sourceText, settings) {
+  setStatus("正在将需求描述整理为标准需求文档...");
+
+  const response = await fetch(`${settings.backendUrl.replace(/\/$/, "")}/api/standardize`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      projectName: settings.projectName,
+      sourceText,
+      llmConfig: settings.llmConfig,
+    }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "后端整理需求文档失败");
+  }
+
+  const content = String(payload.content || "").trim();
+  if (!content) {
+    throw new Error("大模型未返回可用的标准需求文档");
+  }
+
+  return content;
+}
+
+function getInputMode() {
+  const selected = Array.from(elements.inputModeRadios).find((item) => item.checked);
+  return selected?.value || "document";
+}
+
+function setInputMode(mode) {
+  elements.inputModeRadios.forEach((item) => {
+    item.checked = item.value === mode;
+  });
+  updateInputModeView();
+}
+
+function updateInputModeView() {
+  const isDescriptionMode = getInputMode() === "description";
+  elements.descriptionPanel.hidden = !isDescriptionMode;
+  elements.dropzone.hidden = isDescriptionMode;
+  elements.standardizeBtn.hidden = !isDescriptionMode;
+  elements.sourcePanelTitle.textContent = isDescriptionMode ? "标准需求文档预览 / 编辑" : "提取内容";
+  elements.sourcePanelHint.textContent = isDescriptionMode
+    ? "整理后的标准需求文档会显示在这里，确认或修改后可直接开始拆分。"
+    : "上传或粘贴后的需求内容会显示在这里。";
+
+  if (isDescriptionMode) {
+    setStatus("请在“需求描述”中粘贴原始需求，然后点击“整理需求文档”。");
+    return;
+  }
+
+  setStatus("等待上传或粘贴需求文档。");
+}
+
 function notifyCompletion(title, message, type = "success") {
   showToast(title, type === "success" ? `${message}可以导出 Excel。` : message, type);
   showSystemNotification(title, message);
@@ -295,8 +415,7 @@ function notifyCompletion(title, message, type = "success") {
 
 function collectSettings() {
   return {
-    owner: cleanCell(elements.owner.value.trim() || "宋恺珉"),
-    targetCfp: Number(elements.targetCfp.value || 0),
+    targetCfp: elements.targetCfp.value.trim() ? Number(elements.targetCfp.value) : "",
     templateType: "cosmic",
     generationMode: "ai",
     backendUrl: DEFAULT_BACKEND_URL,
@@ -318,6 +437,32 @@ function parseModules(text) {
 
   for (const rawLine of lines) {
     const line = rawLine.replace(/\t/g, ",");
+    const level1Match = line.match(/^#{1,6}\s*一级模块[:：]\s*(.+)$/) || line.match(/^(?:[-*]\s*)?一级模块[:：]\s*(.+)$/);
+    if (level1Match) {
+      currentL1 = sanitizeModuleName(level1Match[1]);
+      currentL2 = "";
+      currentL3 = "";
+      continue;
+    }
+
+    const level2Match = line.match(/^#{1,6}\s*二级模块[:：]\s*(.+)$/) || line.match(/^(?:[-*]\s*)?二级模块[:：]\s*(.+)$/);
+    if (level2Match) {
+      currentL2 = sanitizeModuleName(level2Match[1]);
+      currentL3 = "";
+      continue;
+    }
+
+    const level3Match = line.match(/^#{1,6}\s*三级模块[:：]\s*(.+)$/) || line.match(/^(?:[-*]\s*)?三级模块[:：]\s*(.+)$/);
+    if (level3Match) {
+      currentL3 = sanitizeModuleName(level3Match[1]);
+      pushModule(currentL1, currentL2, currentL3);
+      continue;
+    }
+
+    if (/^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$/.test(line)) {
+      continue;
+    }
+
     if (line.startsWith("# ")) {
       currentL1 = sanitizeModuleName(line.replace(/^#\s*/, ""));
       continue;
@@ -388,7 +533,6 @@ function buildCosmicRows(modules, settings) {
           数据组: dataGroup,
           数据属性: dataAttributes,
           估算CFP: roundNumber(rowCfp / operation.movements.length, 2),
-          功能点负责人: settings.owner,
         });
       });
     }
@@ -406,7 +550,6 @@ async function requestAiRows(modules, settings) {
     body: JSON.stringify({
       projectName: settings.projectName,
       targetCfp: settings.targetCfp,
-      owner: settings.owner,
       templateType: settings.templateType,
       sourceText: elements.sourceEditor.value,
       modules,
@@ -672,7 +815,7 @@ function buildTargetCfpMessage(totalCfp, targetCfp) {
   if (!Number.isFinite(target) || target <= 0) return "";
 
   const difference = roundNumber(target - totalCfp, 2);
-  if (Math.abs(difference) <= CFP_TARGET_TOLERANCE) {
+  if (Math.abs(difference) <= 0.01) {
     return `已达到目标 ${formatCfpValue(target)}。`;
   }
 

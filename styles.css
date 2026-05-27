@@ -77,10 +77,17 @@ body {
   font-weight: 700;
 }
 
+.source-help {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .panel-header p,
 .field span,
 .selected-file,
 .status-box,
+.description-editor,
 .source-editor,
 table {
   color: var(--muted);
@@ -105,6 +112,7 @@ table {
 
 .field input,
 .field select,
+.description-editor,
 .source-editor {
   width: 100%;
   border: 1px solid var(--border);
@@ -118,6 +126,7 @@ table {
 
 .field input:focus,
 .field select:focus,
+.description-editor:focus,
 .source-editor:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
@@ -132,6 +141,57 @@ table {
   padding: 12px 14px;
   background: var(--panel-soft);
   border: 1px solid var(--border-soft);
+}
+
+.mode-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.mode-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.mode-option input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.mode-option span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mode-option strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.mode-option small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.description-panel {
+  margin-top: 18px;
+}
+
+.description-editor {
+  min-height: 180px;
+  resize: vertical;
+  font-family: "Source Sans 3", "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.7;
 }
 
 .dropzone {
@@ -302,7 +362,7 @@ button:disabled {
 }
 
 .source-editor {
-  min-height: 320px;
+  min-height: 560px;
   resize: vertical;
   font-family: "Source Sans 3", "PingFang SC", "Microsoft YaHei", sans-serif;
   line-height: 1.7;

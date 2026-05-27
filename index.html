@@ -10,8 +10,8 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260519-toast" />
-    <script defer src="./app.js?v=20260519-cfp-rule-reminder"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260527-description-editor" />
+    <script defer src="./app.js?v=20260527-description-editor"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   </head>
@@ -31,18 +31,41 @@
 
             <label class="field">
               <span>目标 CFP 总和</span>
-              <input id="targetCfp" type="number" min="1" step="1" value="405" />
-            </label>
-
-            <label class="field">
-              <span>功能点负责人</span>
-              <input id="owner" type="text" value="宋恺珉" />
+              <input id="targetCfp" type="number" min="1" step="1" placeholder="请输入目标 CFP 总和（可选）" />
             </label>
 
             <div class="inline-action">
               <span>大模型接口</span>
               <button id="llmConfigBtn" class="secondary-btn" type="button">配置大模型</button>
             </div>
+          </div>
+
+          <div class="mode-panel" role="group" aria-label="输入方式">
+            <label class="mode-option">
+              <input type="radio" name="inputMode" value="document" checked />
+              <span>
+                <strong>已有需求文档</strong>
+                <small>直接基于文档内容进行 COSMIC 拆分</small>
+              </span>
+            </label>
+            <label class="mode-option">
+              <input type="radio" name="inputMode" value="description" />
+              <span>
+                <strong>只有需求描述</strong>
+                <small>先整理为标准需求文档，再进行 COSMIC 拆分</small>
+              </span>
+            </label>
+          </div>
+
+          <div id="descriptionPanel" class="description-panel" hidden>
+            <label class="field">
+              <span>需求描述</span>
+              <textarea
+                id="descriptionEditor"
+                class="description-editor"
+                placeholder="把零散需求、会议记录、功能想法或用户原话粘贴到这里。"
+              ></textarea>
+            </label>
           </div>
 
           <div id="dropzone" class="dropzone" tabindex="0" role="button">
@@ -52,6 +75,7 @@
           </div>
 
           <div class="action-row">
+            <button id="standardizeBtn" class="secondary-btn" type="button">整理需求文档</button>
             <button id="generateBtn" class="primary-btn" type="button">开始拆分</button>
             <button id="exportBtn" class="secondary-btn" type="button" disabled>导出 Excel</button>
           </div>
@@ -61,7 +85,10 @@
 
         <section class="panel preview-panel">
           <div class="panel-header">
-            <h2>提取内容</h2>
+            <div>
+              <h2 id="sourcePanelTitle">提取内容</h2>
+              <p id="sourcePanelHint" class="source-help">上传或粘贴后的需求内容会显示在这里。</p>
+            </div>
           </div>
           <textarea
             id="sourceEditor"

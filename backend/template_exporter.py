@@ -27,7 +27,8 @@ EXPORT_HEADERS = [
 ]
 
 MAIN_HEADERS = EXPORT_HEADERS + ["ΣCFP"]
-MERGE_COLUMNS = [1, 2, 3, 4]
+MERGE_COLUMNS = [1, 2, 3, 4, 7]
+PLAIN_STYLE_COLUMNS = [11]
 
 
 def build_workbook(rows, project_name="COSMIC拆分结果"):
@@ -204,6 +205,8 @@ def _apply_main_style(sheet, start_row, end_row):
         for col_idx in range(1, 15):
             cell = sheet.cell(row_idx, col_idx)
             cell.alignment = Alignment(vertical="center", horizontal=cell.alignment.horizontal or "left", wrap_text=True)
+            if col_idx in PLAIN_STYLE_COLUMNS:
+                _clear_highlight(cell)
 
     sheet.freeze_panes = "A5"
 
@@ -256,5 +259,28 @@ def _column_key(index):
         2: "一级模块",
         3: "二级模块",
         4: "三级模块",
+        7: "功能过程",
     }
     return mapping[index]
+
+
+def _clear_highlight(cell):
+    base_font = copy(cell.font)
+    cell.fill = PatternFill(fill_type=None)
+    cell.font = Font(
+        name=base_font.name,
+        sz=base_font.sz,
+        b=base_font.b,
+        i=base_font.i,
+        charset=base_font.charset,
+        u=base_font.u,
+        strike=base_font.strike,
+        color="000000",
+        vertAlign=base_font.vertAlign,
+        family=base_font.family,
+        scheme=base_font.scheme,
+        outline=base_font.outline,
+        shadow=base_font.shadow,
+        condense=base_font.condense,
+        extend=base_font.extend,
+    )

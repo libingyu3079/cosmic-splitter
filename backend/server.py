@@ -8,6 +8,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from prompt_builder import SYSTEM_PROMPT, build_user_prompt
+from requirement_builder import STANDARD_REQUIREMENT_SYSTEM_PROMPT, build_standard_requirement_prompt
 from template_exporter import build_workbook
 
 
@@ -156,6 +157,43 @@ def call_chat_api(payload):
     }
 
 
+def standardize_requirement_api(payload):
+    config = resolve_llm_config(payload)
+    model = config["model"]
+
+    if not config["api_key"]:
+        raise RuntimeError("未配置 COSMIC_LLM_API_KEY")
+
+    source_text = str(payload.get("sourceText", "")).strip()
+    if not source_text:
+        raise RuntimeError("请先输入需求描述")
+
+    data = post_chat_completion(
+        config,
+        messages=[
+            {"role": "system", "content": STANDARD_REQUIREMENT_SYSTEM_PROMPT},
+            {"role": "user", "content": build_standard_requirement_prompt(payload)},
+        ],
+        extra_payload={"temperature": 0.15},
+        timeout=120,
+    )
+
+    choices = data.get("choices", [])
+    if not choices:
+        raise RuntimeError("模型未返回有效需求文档")
+
+    message = choices[0].get("message", {})
+    content = str(message.get("content", "")).strip()
+    if not content:
+        raise RuntimeError("模型返回的需求文档为空")
+
+    return {
+        "raw": data,
+        "content": content,
+        "model": data.get("model", model),
+    }
+
+
 def test_chat_api(payload):
     config = resolve_llm_config(payload)
     if not config["api_key"]:
@@ -209,6 +247,11 @@ class CosmicHandler(BaseHTTPRequestHandler):
 
             if self.path == "/api/generate":
                 result = call_chat_api(payload)
+                json_response(self, 200, result)
+                return
+
+            if self.path == "/api/standardize":
+                result = standardize_requirement_api(payload)
                 json_response(self, 200, result)
                 return
 
