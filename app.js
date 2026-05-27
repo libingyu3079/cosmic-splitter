@@ -94,7 +94,10 @@ const FORBIDDEN_WORDS = [
 ];
 
 const LLM_CONFIG_STORAGE_KEY = "cosmicSplitter.llmConfig";
-const DEFAULT_BACKEND_URL = "http://127.0.0.1:8090";
+const DEFAULT_BACKEND_URL =
+  ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://127.0.0.1:8090"
+    : window.location.origin;
 const TOAST_SUCCESS_AUTO_CLOSE_MS = 0;
 const TOAST_ERROR_AUTO_CLOSE_MS = 12000;
 const COSMIC_COLUMNS = [
